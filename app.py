@@ -3,6 +3,7 @@ import os
 import time
 import json
 import uuid
+import pyperclip # Optional: for real clipboard, but usually st.toast is safer for web
 
 # 1. PAGE CONFIG
 st.set_page_config(
@@ -11,56 +12,75 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. CUSTOM CSS (SIDEBAR BLACK TEXT FIX)
+# 2. CUSTOM CSS (The Visual Magic)
 st.markdown("""
 <style>
     /* Hide header/footer */
     .stApp > header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* --- MAIN CHAT VISIBILITY --- */
-    /* Chat bubbles (Dark Theme) */
-    .stChatMessage {
-        background-color: #262730;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 10px;
-        border: 1px solid #333;
-    }
-    .stChatMessage p, .stChatMessage div, .stChatMessage span, .stChatMessage h1, .stChatMessage h2, .stChatMessage h3, .stChatMessage li {
-        color: #ffffff !important; /* White text inside chat bubbles */
-    }
-    [data-testid="stChatMessage"]:nth-child(odd) {
-        background-color: #1E1E1E; 
-        border: 1px solid #444;
-    }
-    
-    /* --- SIDEBAR VISIBILITY FIX --- */
-    /* Force Sidebar History Buttons to be BLACK */
+    /* --- SIDEBAR VISIBILITY (BLACK TEXT) --- */
     [data-testid="stSidebar"] .stButton button {
         text-align: left;
         border: none;
         background: transparent;
-        color: #000000 !important; /* <--- CHANGED TO BLACK */
-        opacity: 1.0; /* Full visibility */
+        color: #000000 !important; /* Force Black */
         font-weight: 600;
-        transition: all 0.2s;
     }
-    
-    /* Hover effect: Light Grey background, keep text Black */
     [data-testid="stSidebar"] .stButton button:hover {
-        background: #f0f2f6;
+        background: #e0e2e6;
         color: #000000 !important;
-        padding-left: 10px;
     }
     
-    /* Login Button Style (Bottom Left) */
-    .login-btn button {
-        background-color: #FF4B4B !important;
-        color: white !important; /* Keep login button white text on red background */
-        border-radius: 5px;
-        text-align: center;
+    /* --- CHAT BUBBLE STYLING --- */
+    
+    /* USER BUBBLE (Grey Background, Left Aligned) */
+    [data-testid="stChatMessage"][data-testid="stChatMessageUser"] {
+        background-color: #f0f2f6; /* Light Grey from screenshot */
+        border-radius: 12px;
+        padding: 15px;
+        color: #000000 !important;
+        border: none;
+    }
+    /* Force user text to be black */
+    [data-testid="stChatMessage"][data-testid="stChatMessageUser"] p,
+    [data-testid="stChatMessage"][data-testid="stChatMessageUser"] div {
+        color: #000000 !important;
+    }
+
+    /* AI BUBBLE (Dark Background, Right Aligned Visuals) */
+    [data-testid="stChatMessage"][data-testid="stChatMessageAssistant"] {
+        background-color: #262730;
+        border-radius: 12px;
+        padding: 15px;
+        border: 1px solid #444;
+    }
+    
+    /* --- ICON BUTTON STYLING (Minimalist) --- */
+    .icon-btn {
+        border: none;
+        background: transparent;
+        color: #888;
+        font-size: 14px;
+        cursor: pointer;
+        padding: 0px 5px;
+    }
+    .icon-btn:hover {
+        color: #000;
         font-weight: bold;
+    }
+    
+    /* Streamlit Button override to look like icons */
+    div[data-testid="column"] button {
+        background: transparent;
+        border: none;
+        color: #888; /* Grey icons */
+        padding: 0;
+        font-size: 1.2rem;
+    }
+    div[data-testid="column"] button:hover {
+        color: #FF4B4B; /* Highlight color */
+        background: transparent;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -88,29 +108,12 @@ if "current_session_id" not in st.session_state:
 def get_chat_title(messages):
     for msg in messages:
         if msg["role"] == "user":
-            return msg["content"][:25] + "..."
+            return msg["content"][:20] + "..."
     return "New Chat"
 
-# --- LOGIN POPUP ---
-@st.dialog("Welcome to Nexus AI")
-def login_dialog():
-    st.markdown("Sign in to sync your campaigns.")
-    username = st.text_input("Email Address")
-    password = st.text_input("Password", type="password")
-    
-    if st.button("Log In", use_container_width=True):
-        st.success(f"Welcome back, {username}!")
-        time.sleep(1)
-        st.rerun()
-        
-    st.markdown("---")
-    st.caption("Don't have an account? Sign Up")
-
-# 6. SIDEBAR
+# --- SIDEBAR ---
 with st.sidebar:
     st.title("🤖 Nexus AI")
-    
-    # New Chat
     if st.button("➕ New Chat", use_container_width=True):
         new_id = str(uuid.uuid4())
         st.session_state.current_session_id = new_id
@@ -118,84 +121,129 @@ with st.sidebar:
         st.rerun()
     
     st.markdown("---")
-    st.caption("RECENT HISTORY")
+    st.caption("HISTORY")
     
     # History List
-    history_found = False
     for session_id in reversed(list(st.session_state.all_chats.keys())):
         messages = st.session_state.all_chats[session_id]
         title = get_chat_title(messages)
-        
-        if title == "New Chat":
-            continue
+        if title == "New Chat": continue
             
-        history_found = True
-        
-        # Highlight active chat
         label = f"🔹 {title}" if session_id == st.session_state.current_session_id else f"▫️ {title}"
-        
         if st.button(label, key=session_id, use_container_width=True):
             st.session_state.current_session_id = session_id
             st.rerun()
 
-    if not history_found:
-        st.caption("No saved campaigns yet.")
-
-    # Spacer & Login
-    st.markdown("<br>" * 5, unsafe_allow_html=True) 
-    st.markdown("---")
-    
-    if st.button("👤 Log In / Sign Up", use_container_width=True):
-        login_dialog()
-
-# 7. MAIN CHAT INTERFACE
+# 6. MAIN INTERFACE
 current_messages = st.session_state.all_chats[st.session_state.current_session_id]
 
 if not current_messages:
-    with st.chat_message("assistant"):
-        st.markdown("Hello! I am your AI Marketing Team. Ready to launch a new campaign?")
+    # Empty State
+    st.markdown("""
+    <div style="text-align: center; margin-top: 50px; color: #666;">
+        <h1>Ready to Launch?</h1>
+        <p>Type a product topic below to start the agent team.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-for msg in current_messages:
-    with st.chat_message(msg["role"]):
-        if isinstance(msg["content"], str):
-            st.markdown(msg["content"])
-        elif isinstance(msg["content"], dict):
-            # Render Logic
-            result = msg["content"]
-            with st.expander("🗺️ Strategy Brief", expanded=False):
-                st.markdown(result.get("content_brief", "No brief."))
-            
-            content_pack = result.get("generated_content", [])
-            if content_pack:
-                st.write("### 📦 Assets")
-                tabs = st.tabs(["Twitter", "LinkedIn", "Email"])
-                with tabs[0]:
-                    for p in content_pack:
-                        if "twitter" in p.platform.lower(): st.info(f"**{p.title}**\n\n{p.content}")
-                with tabs[1]:
-                    for p in content_pack:
-                        if "linkedin" in p.platform.lower(): st.success(f"**{p.title}**\n\n{p.content}")
-                with tabs[2]:
-                    for p in content_pack:
-                        if "email" in p.platform.lower(): st.warning(f"**{p.title}**\n\n{p.content}")
-            
-            st.divider()
-            feedback = result.get("editor_feedback", {})
-            c1, c2 = st.columns([1, 3])
-            c1.metric("Score", f"{feedback.get('overall_score', 0)}/30")
-            c2.caption(f"**Verdict:** {result.get('publishing_decision', 'N/A').upper()}")
-
-# 8. INPUT
-if prompt := st.chat_input("Type a marketing goal..."):
-    st.session_state.all_chats[st.session_state.current_session_id].append({"role": "user", "content": prompt})
+# --- CHAT LOOP WITH ICON LOGIC ---
+for i, msg in enumerate(current_messages):
     
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    # === USER MESSAGE (Left, Grey) ===
+    if msg["role"] == "user":
+        with st.chat_message("user", avatar="👤"):
+            st.markdown(msg["content"])
+        
+        # Action Icons Row (Just below user bubble)
+        col1, col2, col3 = st.columns([0.5, 0.5, 8])
+        with col1:
+            if st.button("✏️", key=f"edit_{i}", help="Edit Query"):
+                st.toast("Edit mode active (Demo)")
+        with col2:
+            if st.button("📄", key=f"copy_u_{i}", help="Copy Text"):
+                st.toast("Copied query to clipboard!")
 
-    with st.chat_message("assistant"):
-        with st.status("Agents working...", expanded=True) as status:
+    # === AI MESSAGE (Right/Standard, Dark) ===
+    elif msg["role"] == "assistant":
+        with st.chat_message("assistant", avatar="🤖"):
+            
+            # 1. Render Content
+            if isinstance(msg["content"], str):
+                st.markdown(msg["content"])
+            elif isinstance(msg["content"], dict):
+                # Complex Agent Output
+                result = msg["content"]
+                
+                with st.expander("🗺️ Strategy Brief", expanded=False):
+                    st.markdown(result.get("content_brief", "No brief."))
+                
+                content_pack = result.get("generated_content", [])
+                if content_pack:
+                    st.write("### 📦 Generated Assets")
+                    tabs = st.tabs(["Twitter", "LinkedIn", "Email"])
+                    with tabs[0]:
+                        for p in content_pack:
+                            if "twitter" in p.platform.lower(): st.info(f"**{p.title}**\n\n{p.content}")
+                    with tabs[1]:
+                        for p in content_pack:
+                            if "linkedin" in p.platform.lower(): st.success(f"**{p.title}**\n\n{p.content}")
+                    with tabs[2]:
+                        for p in content_pack:
+                            if "email" in p.platform.lower(): st.warning(f"**{p.title}**\n\n{p.content}")
+                
+                st.divider()
+                # Editor Score Card
+                feedback = result.get("editor_feedback", {})
+                score = feedback.get("overall_score", 0)
+                decision = result.get("publishing_decision", "N/A")
+                
+                c1, c2 = st.columns([1, 3])
+                c1.metric("Score", f"{score}/30")
+                if score > 20:
+                    c2.success(f"**Verdict:** {decision.upper()}")
+                else:
+                    c2.error(f"**Verdict:** {decision.upper()}")
+
+        # Action Icons Row (At end of Answer)
+        # We use columns to push them to the right or left
+        col_a, col_b, col_c, spacer = st.columns([0.5, 0.5, 0.5, 8])
+        with col_a:
+            if st.button("📄", key=f"copy_ai_{i}", help="Copy Answer"):
+                st.toast("Copied response!")
+        with col_b:
+            if st.button("👍", key=f"like_{i}"):
+                st.toast("Thanks for the feedback!")
+        with col_c:
+            if st.button("👎", key=f"dislike_{i}"):
+                st.toast("We'll improve next time.")
+                
+    # Add a small spacer between messages
+    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+
+
+# 7. INPUT HANDLER
+if prompt := st.chat_input("Type your marketing goal..."):
+    
+    # Save User Msg
+    st.session_state.all_chats[st.session_state.current_session_id].append({"role": "user", "content": prompt})
+    st.rerun() # Rerun to show user message immediately
+
+# 8. AGENT EXECUTION (After Rerun)
+# Check if last message was user, if so, trigger AI
+last_msg = st.session_state.all_chats[st.session_state.current_session_id][-1] if st.session_state.all_chats[st.session_state.current_session_id] else None
+
+if last_msg and last_msg["role"] == "user":
+    
+    with st.chat_message("assistant", avatar="🤖"):
+        with st.status("🚀 Agents are collaborating...", expanded=True) as status:
+            st.write("🧠 Strategist is researching trends...")
+            time.sleep(1) # Visual pacing
+            st.write("✍️ Writer is drafting content...")
+            time.sleep(1)
+            
+            # Run Graph
             initial_state = {
-                "user_query": prompt,
+                "user_query": last_msg["content"],
                 "target_audience": "General",
                 "brand_voice": "Professional",
                 "frequency": "Weekly",
@@ -203,9 +251,8 @@ if prompt := st.chat_input("Type a marketing goal..."):
                 "revision_count": 0
             }
             result = st.session_state.marketing_graph.invoke(initial_state)
-            status.update(label="Done", state="complete", expanded=False)
-        
-        st.success("Campaign generated! (See details above)")
-        st.session_state.all_chats[st.session_state.current_session_id].append({"role": "assistant", "content": result})
-        
-    st.rerun()
+            status.update(label="Campaign Ready!", state="complete", expanded=False)
+            
+            # Save AI Response
+            st.session_state.all_chats[st.session_state.current_session_id].append({"role": "assistant", "content": result})
+            st.rerun()
