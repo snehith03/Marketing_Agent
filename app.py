@@ -6,10 +6,10 @@ import time
 st.set_page_config(
     page_title="Nexus AI Chat",
     page_icon="🤖",
-    layout="centered" # "Centered" looks more like ChatGPT
+    layout="centered"
 )
 
-# 2. CUSTOM CSS (To make it look like a clean chat app)
+# 2. CUSTOM CSS (FIXED FOR VISIBILITY)
 st.markdown("""
 <style>
     /* Hide the Streamlit header and footer */
@@ -20,12 +20,21 @@ st.markdown("""
     .stChatMessage {
         background-color: #262730;
         border-radius: 10px;
-        padding: 10px;
+        padding: 15px;
         margin-bottom: 10px;
+        color: #ffffff !important; /* <--- THIS FIXES THE TEXT VISIBILITY */
+        border: 1px solid #333;
     }
-    /* User bubble color */
+    
+    /* Ensure all text inside the bubble is white */
+    .stChatMessage p, .stChatMessage div, .stChatMessage span {
+        color: #ffffff !important;
+    }
+
+    /* Differentiate User bubble from Assistant */
     [data-testid="stChatMessage"]:nth-child(odd) {
         background-color: #1E1E1E; 
+        border: 1px solid #444;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -47,7 +56,7 @@ if "messages" not in st.session_state:
         {"role": "assistant", "content": "Hello! I am your AI Marketing Team. Tell me what product or topic you want to launch, and I'll handle the Strategy, Content, and Quality Control."}
     ]
 
-# 6. SIDEBAR (Minimal)
+# 6. SIDEBAR
 with st.sidebar:
     st.title("🤖 Nexus AI")
     st.caption("Multi-Agent System")
@@ -81,7 +90,6 @@ for msg in st.session_state.messages:
             content_pack = result.get("generated_content", [])
             if content_pack:
                 st.write("### 📦 Generated Assets")
-                # Group by platform for cleaner tabs
                 platform_tabs = st.tabs(["Twitter", "LinkedIn", "Email/Blog"])
                 
                 with platform_tabs[0]:
@@ -124,8 +132,8 @@ if prompt := st.chat_input("E.g., Launch a marketing campaign for a vegan energy
             st.write("🧠 Strategist is analyzing market trends...")
             initial_state = {
                 "user_query": prompt,
-                "target_audience": "General Audience", # Defaulting for chat simplicity
-                "brand_voice": "Professional",        # Defaulting for chat simplicity
+                "target_audience": "General Audience",
+                "brand_voice": "Professional",
                 "frequency": "Weekly",
                 "date": "2025-12-20",
                 "revision_count": 0
@@ -135,16 +143,14 @@ if prompt := st.chat_input("E.g., Launch a marketing campaign for a vegan energy
             result = st.session_state.marketing_graph.invoke(initial_state)
             
             st.write("✍️ Writer is drafting content...")
-            time.sleep(0.5) # UI pacing
+            time.sleep(0.5)
             
             st.write("🧐 Editor is grading quality...")
-            time.sleep(0.5) # UI pacing
+            time.sleep(0.5)
             
             status.update(label="Process Complete", state="complete", expanded=False)
         
-        # 3. Render Output (Same logic as history loop above)
-        # We duplicate the rendering logic here to show it immediately
-        
+        # 3. Render Output
         st.success("Here is your campaign package:")
         
         # Strategy
@@ -183,5 +189,4 @@ if prompt := st.chat_input("E.g., Launch a marketing campaign for a vegan energy
         c2.caption(f"**Editor Verdict:** {decision.upper()}\n\n_{feedback.get('rationale', '')}_")
 
     # C. Save Result to History
-    # We save the raw result dict so we can re-render it nicely later
     st.session_state.messages.append({"role": "assistant", "content": result})
