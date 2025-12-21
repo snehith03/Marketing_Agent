@@ -35,11 +35,11 @@ if "OPENAI_API_KEY" in st.secrets:
     os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 # 4. IMPORT BACKEND
-from backend import build_marketing_workflow, llm
+from backend import build_marketing_workflow
 
 # Initialize Graph (Cache it so it doesn't reload on every run)
 if "marketing_graph" not in st.session_state:
-    st.session_state.marketing_graph = build_marketing_workflow(llm)
+    st.session_state.marketing_graph = build_marketing_workflow()
 
 # 5. SESSION STATE FOR CHAT HISTORY
 if "messages" not in st.session_state:
