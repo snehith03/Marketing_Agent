@@ -3,7 +3,6 @@ import os
 import time
 import json
 import uuid
-# Removed pyperclip import to prevent cloud errors
 
 # 1. PAGE CONFIG
 st.set_page_config(
@@ -12,7 +11,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. CUSTOM CSS (Visual Magic)
+# 2. CUSTOM CSS
 st.markdown("""
 <style>
     /* Hide header/footer */
@@ -67,6 +66,12 @@ st.markdown("""
         color: #FF4B4B;
         background: transparent;
     }
+    
+    /* --- LOGIN BUTTON STYLE --- */
+    /* This targets the last button in the sidebar specifically if we use a specific key */
+    .login-btn {
+        margin-top: 50px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -95,6 +100,21 @@ def get_chat_title(messages):
             return msg["content"][:20] + "..."
     return "New Chat"
 
+# --- LOGIN DIALOG ---
+@st.dialog("Welcome to Nexus AI")
+def login_dialog():
+    st.markdown("Sign in to sync your campaigns.")
+    username = st.text_input("Email Address")
+    password = st.text_input("Password", type="password")
+    
+    if st.button("Log In", use_container_width=True):
+        st.success(f"Welcome back, {username}!")
+        time.sleep(1)
+        st.rerun()
+        
+    st.markdown("---")
+    st.caption("Don't have an account? Sign Up")
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("🤖 Nexus AI")
@@ -107,6 +127,7 @@ with st.sidebar:
     st.markdown("---")
     st.caption("HISTORY")
     
+    # History List
     for session_id in reversed(list(st.session_state.all_chats.keys())):
         messages = st.session_state.all_chats[session_id]
         title = get_chat_title(messages)
@@ -116,6 +137,12 @@ with st.sidebar:
         if st.button(label, key=session_id, use_container_width=True):
             st.session_state.current_session_id = session_id
             st.rerun()
+            
+    # --- PUSH LOGIN TO BOTTOM ---
+    st.markdown("<br>" * 5, unsafe_allow_html=True) 
+    st.markdown("---")
+    if st.button("👤 Log In / Sign Up", use_container_width=True):
+        login_dialog()
 
 # 6. MAIN CHAT INTERFACE
 current_messages = st.session_state.all_chats[st.session_state.current_session_id]
@@ -128,14 +155,15 @@ if not current_messages:
     </div>
     """, unsafe_allow_html=True)
 
+# Chat Loop
 for i, msg in enumerate(current_messages):
     
-    # === USER MESSAGE ===
+    # === USER ===
     if msg["role"] == "user":
         with st.chat_message("user", avatar="👤"):
             st.markdown(msg["content"])
         
-        # Icons Row (Below User)
+        # Icons Row
         col1, col2, spacer = st.columns([0.05, 0.05, 0.9])
         with col1:
             if st.button("✏️", key=f"edit_{i}", help="Edit"):
@@ -144,7 +172,7 @@ for i, msg in enumerate(current_messages):
             if st.button("📄", key=f"copy_u_{i}", help="Copy"):
                 st.toast("Copied to clipboard!")
 
-    # === AI MESSAGE ===
+    # === AI ===
     elif msg["role"] == "assistant":
         with st.chat_message("assistant", avatar="🤖"):
             
@@ -182,7 +210,7 @@ for i, msg in enumerate(current_messages):
                 else:
                     c2.error(f"**Verdict:** {decision.upper()}")
 
-        # Icons Row (End of AI)
+        # Icons Row
         col_a, col_b, col_c, spacer = st.columns([0.05, 0.05, 0.05, 0.85])
         with col_a:
             if st.button("📄", key=f"copy_ai_{i}"):
@@ -195,7 +223,6 @@ for i, msg in enumerate(current_messages):
                 st.toast("Feedback recorded!")
                 
     st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-
 
 # 7. INPUT
 if prompt := st.chat_input("Type your marketing goal..."):
