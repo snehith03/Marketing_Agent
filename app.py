@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import time
+import json  # <--- Added for saving history
 
 # 1. PAGE CONFIG
 st.set_page_config(
@@ -22,7 +23,7 @@ st.markdown("""
         border-radius: 10px;
         padding: 15px;
         margin-bottom: 10px;
-        color: #ffffff !important; /* <--- THIS FIXES THE TEXT VISIBILITY */
+        color: #ffffff !important;
         border: 1px solid #333;
     }
     
@@ -68,6 +69,18 @@ with st.sidebar:
     st.checkbox("🧐 Editor", value=True, disabled=True)
     
     st.markdown("---")
+    
+    # --- NEW: SAVE HISTORY BUTTON ---
+    # Convert history to JSON string
+    chat_json = json.dumps(st.session_state.messages, default=str, indent=2)
+    
+    st.download_button(
+        label="📥 Download Conversation",
+        data=chat_json,
+        file_name="marketing_history.json",
+        mime="application/json"
+    )
+    
     if st.button("🗑️ Clear Chat History"):
         st.session_state.messages = []
         st.rerun()
