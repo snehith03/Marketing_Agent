@@ -1,7 +1,8 @@
 import streamlit as st
 import os
 import time
-import json  # <--- Added for saving history
+import json
+import uuid
 
 # 1. PAGE CONFIG
 st.set_page_config(
@@ -10,14 +11,14 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. CUSTOM CSS (FIXED FOR VISIBILITY)
+# 2. CUSTOM CSS
 st.markdown("""
 <style>
-    /* Hide the Streamlit header and footer */
+    /* Hide header/footer */
     .stApp > header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Style the chat bubbles */
+    /* Chat bubbles */
     .stChatMessage {
         background-color: #262730;
         border-radius: 10px;
@@ -26,180 +27,155 @@ st.markdown("""
         color: #ffffff !important;
         border: 1px solid #333;
     }
-    
-    /* Ensure all text inside the bubble is white */
     .stChatMessage p, .stChatMessage div, .stChatMessage span {
         color: #ffffff !important;
     }
-
-    /* Differentiate User bubble from Assistant */
     [data-testid="stChatMessage"]:nth-child(odd) {
         background-color: #1E1E1E; 
         border: 1px solid #444;
     }
+    
+    /* Sidebar History Buttons */
+    .stButton button {
+        text-align: left;
+        border: none;
+        background: transparent;
+        color: #ccc;
+    }
+    .stButton button:hover {
+        background: #333;
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# 3. SECRETS SETUP
+# 3. SECRETS
 if "OPENAI_API_KEY" in st.secrets:
     os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 # 4. IMPORT BACKEND
 from backend import build_marketing_workflow
 
-# Initialize Graph (Cache it so it doesn't reload on every run)
+# Initialize Graph
 if "marketing_graph" not in st.session_state:
     st.session_state.marketing_graph = build_marketing_workflow()
 
-# 5. SESSION STATE FOR CHAT HISTORY
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "Hello! I am your AI Marketing Team. Tell me what product or topic you want to launch, and I'll handle the Strategy, Content, and Quality Control."}
+# 5. SESSION MANAGEMENT (The Logic for History)
+if "all_chats" not in st.session_state:
+    # This stores ALL conversations: { "session_id": [messages] }
+    st.session_state.all_chats = {}
+
+if "current_session_id" not in st.session_state:
+    # Start with a default session
+    new_id = str(uuid.uuid4())
+    st.session_state.current_session_id = new_id
+    st.session_state.all_chats[new_id] = [
+        {"role": "assistant", "content": "Hello! I am your AI Marketing Team. Ready to launch a new campaign?"}
     ]
+
+# Helper to get current chat title (based on first user prompt)
+def get_chat_title(messages):
+    for msg in messages:
+        if msg["role"] == "user":
+            return msg["content"][:25] + "..." # Take first 25 chars
+    return "New Chat"
 
 # 6. SIDEBAR
 with st.sidebar:
     st.title("🤖 Nexus AI")
-    st.caption("Multi-Agent System")
     
-    st.markdown("---")
-    st.markdown("**Agents Active:**")
-    st.checkbox("🧠 Strategist", value=True, disabled=True)
-    st.checkbox("✍️ Writer", value=True, disabled=True)
-    st.checkbox("🧐 Editor", value=True, disabled=True)
-    
-    st.markdown("---")
-    
-    # --- NEW: SAVE HISTORY BUTTON ---
-    # Convert history to JSON string
-    chat_json = json.dumps(st.session_state.messages, default=str, indent=2)
-    
-    st.download_button(
-        label="📥 Download Conversation",
-        data=chat_json,
-        file_name="marketing_history.json",
-        mime="application/json"
-    )
-    
-    if st.button("🗑️ Clear Chat History"):
-        st.session_state.messages = []
+    # --- NEW CHAT BUTTON ---
+    if st.button("➕ New Chat", use_container_width=True):
+        new_id = str(uuid.uuid4())
+        st.session_state.current_session_id = new_id
+        st.session_state.all_chats[new_id] = [
+            {"role": "assistant", "content": "Hello! Ready for a new campaign strategy."}
+        ]
         st.rerun()
+    
+    st.markdown("---")
+    st.markdown("**History**")
+    
+    # --- HISTORY LIST ---
+    # We iterate through all stored chats and make buttons
+    # Reverse order so newest is top
+    for session_id in reversed(list(st.session_state.all_chats.keys())):
+        messages = st.session_state.all_chats[session_id]
+        title = get_chat_title(messages)
+        
+        # Highlight the active chat
+        if session_id == st.session_state.current_session_id:
+            if st.button(f"🔹 {title}", key=session_id, use_container_width=True):
+                pass # Already active
+        else:
+            if st.button(f"▫️ {title}", key=session_id, use_container_width=True):
+                st.session_state.current_session_id = session_id
+                st.rerun()
 
-# 7. DISPLAY CHAT HISTORY
-for msg in st.session_state.messages:
+    st.markdown("---")
+    st.caption("Active Agents: Strategist • Writer • Editor")
+
+# 7. MAIN CHAT INTERFACE
+# Get the messages for the CURRENTLY selected session
+current_messages = st.session_state.all_chats[st.session_state.current_session_id]
+
+# Display them
+for msg in current_messages:
     with st.chat_message(msg["role"]):
-        # If the content is simple text, show it
         if isinstance(msg["content"], str):
             st.markdown(msg["content"])
-        # If it's our complex result dictionary, render it nicely
         elif isinstance(msg["content"], dict):
+            # Render Complex Output (Same as before)
             result = msg["content"]
-            
-            # A. Strategy
-            with st.expander("🗺️ View Strategy Brief", expanded=False):
+            with st.expander("🗺️ Strategy Brief", expanded=False):
                 st.markdown(result.get("content_brief", "No brief."))
             
-            # B. Content (Tabs)
             content_pack = result.get("generated_content", [])
             if content_pack:
-                st.write("### 📦 Generated Assets")
-                platform_tabs = st.tabs(["Twitter", "LinkedIn", "Email/Blog"])
-                
-                with platform_tabs[0]:
+                st.write("### 📦 Assets")
+                tabs = st.tabs(["Twitter", "LinkedIn", "Email"])
+                with tabs[0]:
                     for p in content_pack:
-                        if "twitter" in p.platform.lower():
-                            st.info(f"**{p.title}**\n\n{p.content}")
-                with platform_tabs[1]:
+                        if "twitter" in p.platform.lower(): st.info(f"**{p.title}**\n\n{p.content}")
+                with tabs[1]:
                     for p in content_pack:
-                        if "linkedin" in p.platform.lower():
-                            st.success(f"**{p.title}**\n\n{p.content}")
-                with platform_tabs[2]:
+                        if "linkedin" in p.platform.lower(): st.success(f"**{p.title}**\n\n{p.content}")
+                with tabs[2]:
                     for p in content_pack:
-                        if "email" in p.platform.lower() or "blog" in p.platform.lower():
-                            st.warning(f"**{p.title}**\n\n{p.content}")
+                        if "email" in p.platform.lower(): st.warning(f"**{p.title}**\n\n{p.content}")
             
-            # C. Editor Score
             st.divider()
             feedback = result.get("editor_feedback", {})
-            score = feedback.get("overall_score", 0)
-            decision = result.get("publishing_decision", "N/A")
-            
             c1, c2 = st.columns([1, 3])
-            c1.metric("Quality Score", f"{score}/30")
-            c2.caption(f"**Editor Verdict:** {decision.upper()}\n\n_{feedback.get('rationale', '')}_")
+            c1.metric("Score", f"{feedback.get('overall_score', 0)}/30")
+            c2.caption(f"**Verdict:** {result.get('publishing_decision', 'N/A').upper()}")
 
-
-# 8. CHAT INPUT HANDLER
-if prompt := st.chat_input("E.g., Launch a marketing campaign for a vegan energy drink"):
+# 8. INPUT HANDLER
+if prompt := st.chat_input("Type a marketing goal..."):
     
-    # A. Display User Message
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    # Append to current session
+    st.session_state.all_chats[st.session_state.current_session_id].append({"role": "user", "content": prompt})
+    
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # B. Generate Assistant Response
     with st.chat_message("assistant"):
-        with st.status("Thinking...", expanded=True) as status:
-            
-            # 1. Prepare State
-            st.write("🧠 Strategist is analyzing market trends...")
+        with st.status("Agents working...", expanded=True) as status:
             initial_state = {
                 "user_query": prompt,
-                "target_audience": "General Audience",
+                "target_audience": "General",
                 "brand_voice": "Professional",
                 "frequency": "Weekly",
                 "date": "2025-12-20",
                 "revision_count": 0
             }
-            
-            # 2. Run Graph
             result = st.session_state.marketing_graph.invoke(initial_state)
-            
-            st.write("✍️ Writer is drafting content...")
-            time.sleep(0.5)
-            
-            st.write("🧐 Editor is grading quality...")
-            time.sleep(0.5)
-            
-            status.update(label="Process Complete", state="complete", expanded=False)
+            status.update(label="Done", state="complete", expanded=False)
         
-        # 3. Render Output
-        st.success("Here is your campaign package:")
+        # Simple render for immediate view (abbreviated for code brevity)
+        st.success("Campaign generated! (See details above)")
         
-        # Strategy
-        with st.expander("🗺️ View Strategy Brief", expanded=False):
-            st.markdown(result.get("content_brief", "No brief."))
+        # Save result to current session
+        st.session_state.all_chats[st.session_state.current_session_id].append({"role": "assistant", "content": result})
         
-        # Content
-        content_pack = result.get("generated_content", [])
-        if content_pack:
-            st.write("### 📦 Generated Assets")
-            platform_tabs = st.tabs(["Twitter", "LinkedIn", "Email/Blog"])
-            
-            with platform_tabs[0]:
-                for p in content_pack:
-                    if "twitter" in p.platform.lower():
-                        st.info(f"**{p.title}**\n\n{p.content}")
-            with platform_tabs[1]:
-                for p in content_pack:
-                    if "linkedin" in p.platform.lower():
-                        st.success(f"**{p.title}**\n\n{p.content}")
-            with platform_tabs[2]:
-                for p in content_pack:
-                    if "email" in p.platform.lower() or "blog" in p.platform.lower():
-                        st.warning(f"**{p.title}**\n\n{p.content}")
-        else:
-            st.error("Content was rejected by the Editor.")
-
-        # Editor Stats
-        st.divider()
-        feedback = result.get("editor_feedback", {})
-        score = feedback.get("overall_score", 0)
-        decision = result.get("publishing_decision", "N/A")
-        
-        c1, c2 = st.columns([1, 3])
-        c1.metric("Quality Score", f"{score}/30")
-        c2.caption(f"**Editor Verdict:** {decision.upper()}\n\n_{feedback.get('rationale', '')}_")
-
-    # C. Save Result to History
-    st.session_state.messages.append({"role": "assistant", "content": result})
+    st.rerun() # Force refresh to update sidebar title
