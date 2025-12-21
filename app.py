@@ -11,15 +11,15 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. CUSTOM CSS (VISIBILITY FIXES)
+# 2. CUSTOM CSS (SIDEBAR BLACK TEXT FIX)
 st.markdown("""
 <style>
     /* Hide header/footer */
     .stApp > header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* --- MAIN CHAT VISIBILITY FIX --- */
-    /* Force text color to white inside chat bubbles */
+    /* --- MAIN CHAT VISIBILITY --- */
+    /* Chat bubbles (Dark Theme) */
     .stChatMessage {
         background-color: #262730;
         border-radius: 10px;
@@ -27,37 +27,37 @@ st.markdown("""
         margin-bottom: 10px;
         border: 1px solid #333;
     }
-    /* Aggressively target all text elements inside the bubble */
     .stChatMessage p, .stChatMessage div, .stChatMessage span, .stChatMessage h1, .stChatMessage h2, .stChatMessage h3, .stChatMessage li {
-        color: #ffffff !important;
+        color: #ffffff !important; /* White text inside chat bubbles */
     }
-    /* User bubble color */
     [data-testid="stChatMessage"]:nth-child(odd) {
         background-color: #1E1E1E; 
         border: 1px solid #444;
     }
     
     /* --- SIDEBAR VISIBILITY FIX --- */
-    /* Fix the 'History' buttons being invisible grey */
-    .stButton button {
+    /* Force Sidebar History Buttons to be BLACK */
+    [data-testid="stSidebar"] .stButton button {
         text-align: left;
         border: none;
         background: transparent;
-        color: #ffffff !important; /* Bright White Text */
-        opacity: 0.8;
-        font-weight: 500;
+        color: #000000 !important; /* <--- CHANGED TO BLACK */
+        opacity: 1.0; /* Full visibility */
+        font-weight: 600;
         transition: all 0.2s;
     }
-    .stButton button:hover {
-        background: #333;
-        opacity: 1.0;
-        padding-left: 10px; /* Slide effect on hover */
+    
+    /* Hover effect: Light Grey background, keep text Black */
+    [data-testid="stSidebar"] .stButton button:hover {
+        background: #f0f2f6;
+        color: #000000 !important;
+        padding-left: 10px;
     }
     
     /* Login Button Style (Bottom Left) */
     .login-btn button {
         background-color: #FF4B4B !important;
-        color: white !important;
+        color: white !important; /* Keep login button white text on red background */
         border-radius: 5px;
         text-align: center;
         font-weight: bold;
@@ -86,16 +86,15 @@ if "current_session_id" not in st.session_state:
     st.session_state.all_chats[new_id] = []
 
 def get_chat_title(messages):
-    # Try to find the first user message to use as title
     for msg in messages:
         if msg["role"] == "user":
             return msg["content"][:25] + "..."
     return "New Chat"
 
-# --- LOGIN POPUP FUNCTION ---
+# --- LOGIN POPUP ---
 @st.dialog("Welcome to Nexus AI")
 def login_dialog():
-    st.markdown("Sign in to sync your campaigns across devices.")
+    st.markdown("Sign in to sync your campaigns.")
     username = st.text_input("Email Address")
     password = st.text_input("Password", type="password")
     
@@ -105,32 +104,28 @@ def login_dialog():
         st.rerun()
         
     st.markdown("---")
-    st.markdown("Don't have an account? [Sign Up](#)")
-    st.caption("Protected by Enterprise Grade Security")
+    st.caption("Don't have an account? Sign Up")
 
 # 6. SIDEBAR
 with st.sidebar:
     st.title("🤖 Nexus AI")
     
-    # New Chat Button
+    # New Chat
     if st.button("➕ New Chat", use_container_width=True):
         new_id = str(uuid.uuid4())
         st.session_state.current_session_id = new_id
-        st.session_state.all_chats[new_id] = [] # Start empty
+        st.session_state.all_chats[new_id] = []
         st.rerun()
     
     st.markdown("---")
     st.caption("RECENT HISTORY")
     
-    # --- HISTORY LIST (FILTERED) ---
-    # We iterate reversed so newest is top
+    # History List
     history_found = False
     for session_id in reversed(list(st.session_state.all_chats.keys())):
         messages = st.session_state.all_chats[session_id]
         title = get_chat_title(messages)
         
-        # KEY CHANGE: Don't show "New Chat" in the list. 
-        # Only show if there is real content (title != "New Chat")
         if title == "New Chat":
             continue
             
@@ -146,30 +141,26 @@ with st.sidebar:
     if not history_found:
         st.caption("No saved campaigns yet.")
 
-    # --- SPACER TO PUSH LOGIN TO BOTTOM ---
+    # Spacer & Login
     st.markdown("<br>" * 5, unsafe_allow_html=True) 
     st.markdown("---")
     
-    # --- LOGIN BUTTON ---
-    # Trigger the dialog
     if st.button("👤 Log In / Sign Up", use_container_width=True):
         login_dialog()
 
 # 7. MAIN CHAT INTERFACE
 current_messages = st.session_state.all_chats[st.session_state.current_session_id]
 
-# If chat is empty, show welcome message
 if not current_messages:
     with st.chat_message("assistant"):
         st.markdown("Hello! I am your AI Marketing Team. Ready to launch a new campaign?")
 
-# Display messages
 for msg in current_messages:
     with st.chat_message(msg["role"]):
         if isinstance(msg["content"], str):
             st.markdown(msg["content"])
         elif isinstance(msg["content"], dict):
-            # Complex Render
+            # Render Logic
             result = msg["content"]
             with st.expander("🗺️ Strategy Brief", expanded=False):
                 st.markdown(result.get("content_brief", "No brief."))
@@ -194,16 +185,13 @@ for msg in current_messages:
             c1.metric("Score", f"{feedback.get('overall_score', 0)}/30")
             c2.caption(f"**Verdict:** {result.get('publishing_decision', 'N/A').upper()}")
 
-# 8. INPUT HANDLER
+# 8. INPUT
 if prompt := st.chat_input("Type a marketing goal..."):
-    
-    # Add User Message
     st.session_state.all_chats[st.session_state.current_session_id].append({"role": "user", "content": prompt})
     
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Add AI Response
     with st.chat_message("assistant"):
         with st.status("Agents working...", expanded=True) as status:
             initial_state = {
@@ -218,8 +206,6 @@ if prompt := st.chat_input("Type a marketing goal..."):
             status.update(label="Done", state="complete", expanded=False)
         
         st.success("Campaign generated! (See details above)")
-        
-        # Save to history
         st.session_state.all_chats[st.session_state.current_session_id].append({"role": "assistant", "content": result})
         
     st.rerun()
