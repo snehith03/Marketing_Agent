@@ -34,74 +34,60 @@ AgentMark
 └── requirements.txt    # Project dependencies
 ```
 
-🔌 The Workflow (Graph Architecture)
-The system follows a strict stateful workflow defined in backend.py:
+## 🔌 The Workflow (Graph Architecture)
+The system follows a strict stateful workflow defined in `backend.py`:
 
-Strategist Nodes:
+### 1. Strategist Nodes
+* **`load_historical_signals`**: Fetches past performance data.
+* **`discover_trending_topics`**: Researches market trends.
+* **`strategist_brief`**: Synthesizes data into a cohesive Content Brief.
 
-load_historical_signals: Fetches past performance data.
+### 2. Writer Node
+* Generates platform-specific content (Twitter Threads, LinkedIn Posts) based on the brief.
 
-discover_trending_topics: Researches market trends.
+### 3. Editor Node (The Gatekeeper)
+* Scores content on **Tone**, **Facts**, and **Brand Voice** (0-10 scale).
+* **Decision Logic:**
+    * **Accept** (>24 pts) → Publish.
+    * **Needs Improvement** (15-24 pts) → **Loop back to Writer** (Revision).
+    * **Reject** (<15 pts) → End workflow.
 
-strategist_brief: Synthesizes data into a cohesive Content Brief.
+## 🚀 Getting Started
 
-Writer Node:
+### Prerequisites
+* Python 3.10+
+* OpenAI API Key
 
-Generates platform-specific content (Twitter Threads, LinkedIn Posts) based on the brief.
+### Installation
 
-Editor Node (The Gatekeeper):
+1.  **Clone the repository**
+    ```bash
+    git clone [https://github.com/yourusername/AgentMark.git](https://github.com/yourusername/AgentMark.git)
+    cd AgentMark
+    ```
 
-Scores content on Tone, Facts, and Brand Voice (0-10 scale).
+2.  **Install Dependencies**
+    ```bash
+    pip install langchain langgraph streamlit openai
+    ```
 
-Decision:
+3.  **Configure Secrets**
+    Create a `.streamlit/secrets.toml` file in the root directory (or use Streamlit Cloud secrets):
+    ```toml
+    OPENAI_API_KEY = "sk-your-openai-key-here"
+    ```
 
-Accept (>24 pts) → Publish.
+4.  **Run the Application**
+    ```bash
+    streamlit run app.py
+    ```
 
-Needs Improvement (15-24 pts) → Loop back to Writer.
-
-Reject (<15 pts) → End workflow.
-
-🚀 Getting Started
-Prerequisites
-Python 3.10+
-
-OpenAI API Key
-
-Installation
-Clone the repository
-
-Bash
-
-git clone [https://github.com/yourusername/AgentMark.git](https://github.com/yourusername/AgentMark.git)
-cd AgentMark
-Install Dependencies
-
-Bash
-
-pip install langchain langgraph streamlit openai
-Configure Secrets Create a .streamlit/secrets.toml file in the root directory (or use Streamlit Cloud secrets):
-
-Ini, TOML
-
-OPENAI_API_KEY = "sk-your-openai-key-here"
-Run the Application
-
-Bash
-
-streamlit run app.py
-📊 Usage Guide
-Open the app in your browser (usually http://localhost:8501).
-
-Sidebar Inputs: Enter your Product ("AI Coffee Maker"), Audience ("Tech Professionals"), and desired Tone ("Witty").
-
-Click "▶️ Start Campaign".
-
-Watch the Status Container as agents work through the nodes.
-
-Review Results:
-
-Strategy Tab: See the research and brief.
-
-Content Tab: View the generated tweets/posts.
-
-Quality Report: Check the Editor's scores and feedback.
+## 📊 Usage Guide
+1.  Open the app in your browser (usually `http://localhost:8501`).
+2.  **Sidebar Inputs:** Enter your Product (e.g., "AI Coffee Maker"), Audience (e.g., "Tech Professionals"), and desired Tone (e.g., "Witty").
+3.  Click **"▶️ Start Campaign"**.
+4.  Watch the **Status Container** as agents work through the nodes.
+5.  **Review Results:**
+    * **Strategy Tab:** See the research and brief.
+    * **Content Tab:** View the generated tweets/posts.
+    * **Quality Report:** Check the Editor's scores and feedback.
